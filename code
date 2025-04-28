@@ -1,0 +1,127 @@
+from telebot import types
+import telebot
+import time
+import random
+
+TG_TOKEN = "7535645689:AAHKu2a51HQVesP9iljvQxQWlqJ0izdxrHY"
+bot = telebot.TeleBot(TG_TOKEN)
+
+pets = {}
+
+lst = "Пицца, Суп, Салат, Вода"
+
+def process_name(message):
+    name = message.text
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row("Кошка", "Собака")
+    markup.row("Капибара", "Змея")
+    bot.send_message(message.chat.id, text=f'{message.from_user.first_name} дальше нужно будет выбрать  тип питомца: ',
+                     reply_markup=markup)
+    bot.register_next_step_handler(message, process_register, name)
+
+
+def create_main():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row("Покормить", "Поиграть")
+    markup.row("Сон", "Статус")
+    return markup
+
+
+def process_register(message, name):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "Твой питомец создан", reply_markup=create_main())
+    type = message.text
+    pets[chat_id] = create_pet(name, type)
+    print(pets[chat_id])
+
+
+def create_pet(name, type):
+    return {
+        "name": name,
+        "type": type,
+        "happines": 50,
+        "energy": 50,
+        "hunger": 50,
+        "last_update": time.time(),
+        "is_sleep": False
+    }
+
+def feed_pet(pet, chat_id):
+    if pet['hunger'] >= 100:
+        bot.send_message(chat_id, "Ваш питомец не голоден")
+        return
+    pet['hunger'] += random.randint(0, max(0, pet['hunger'] - 20))
+
+def play_pet(pet, chat_id):
+    pass
+
+def sleep_pet(pet, chat_id):
+    pet["is_sleep"] = not pet["is_sleep"]
+
+
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    text = f"Привет, {message.from_user.first_name}, давай назовем твоего питомца: "
+    msg = bot.send_message(message.chat.id, text=text)
+    bot.register_next_step_handler(msg, process_name)
+
+
+@bot.message_handler(func=lambda message: True)
+def actions(message):
+    chat_id = message.chat.id
+    pet = pets.get(chat_id)
+
+    if not pet:
+        bot.send_message(chat_id, "Сначала нужно создать  питомца через команду /start")
+        return
+
+    if message.text == "Покормить":
+        feed_pet(pet, chat_id)
+        bot.send_message(chat_id, f"Введите что-нибудь из: {lst}!")
+        markup1 = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup1.row("Пицца", "Суп")
+        markup1.row("Салат", "Вода")
+        bot.register_next_step_handler(message,feed_up)
+        return markup1
+    elif message.text == "Поиграть":
+        play_pet(pet, chat_id)
+        bot.send_message(chat_id, f"Питомец {pet["name"]} доволен!")
+    elif message.text == "Сон":
+        sleep_pet(pet, chat_id)
+        if pet ["is_sleep"]:
+            bot.send_message(chat_id, f"Питомец {pet["name"]} лёг спать!")
+        if not pet ["is_sleep"]:
+            bot.send_message(chat_id, f"Питомец {pet["name"]} проснулся!")
+    elif message.text == "Статус":
+        status = (
+            f'Имя: {pet["name"]}\n'
+            f'Тип: {pet["type"]}\n'
+            f'Голод: {pet["hunger"]}\n'
+            f'Счастье: {pet["happines"]}\n'
+            f'Энергия: {pet["energy"]}\n'
+            f'Состояние: {"Спит" if pet["is_sleep"] else 'Бодорствует'}\n'
+        )
+        bot.send_message(chat_id, status)
+        if pet["hunger"] > 80:
+            bot.send_message(chat_id, text=f"{pet["name"]} проголодался!")
+        if pet["happines"] < 20:
+            bot.send_message(chat_id, text=f"{pet["name"]} грустит!")
+        if pet["energy"] < 10:
+            bot.send_message(chat_id, text=f"{pet["name"]} очень устал и хочет спать!")
+
+def feed_up(message):
+    chat_id = message.chat.id
+    pet = pets.get(chat_id)
+
+
+    if message.text == "Пицца":
+        bot.send_message(chat_id, f"Питомец {pet["name"]} поел пиццы!")
+    elif message.text == "Суп":
+        bot.send_message(chat_id, f"Питомец {pet["name"]} поел суп!")
+    elif message.text == "Салат":
+        bot.send_message(chat_id, f"Питомец {pet["name"]} поел салат!")
+    elif message.text == "Вода":
+        bot.send_message(chat_id, f"Питомец {pet["name"]} попил воды!")
+
+bot.polling()
